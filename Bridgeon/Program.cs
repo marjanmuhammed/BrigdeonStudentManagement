@@ -26,6 +26,17 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 
 builder.Services.AddControllers();
 
+// -------------------- CORS Setup --------------------
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        policy.WithOrigins("http://localhost:5176", "https://localhost:5176") // Both HTTP and HTTPS
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials(); // This is crucial for cookies
+    });
+});
 // -------------------- JWT Auth --------------------
 var jwtSection = configuration.GetSection("Jwt");
 var key = jwtSection["Key"];
@@ -58,7 +69,7 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerDoc("v1", new OpenApiInfo { Title = "MyStore API", Version = "v1" });
+    c.SwaggerDoc("v1", new OpenApiInfo { Title = "Bridgeon API", Version = "v1" });
 
     // Bearer token config
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
@@ -96,8 +107,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-
-app.UseAuthentication(); // 🔥 must come before UseAuthorization
+app.UseCors("AllowFrontend"); // Add this line
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();

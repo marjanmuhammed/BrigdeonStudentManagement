@@ -19,13 +19,8 @@ namespace Bridgeon.Repositeries.UserRepo
             await _db.Users.Include(u => u.RefreshTokens).FirstOrDefaultAsync(u => u.Id == id);
 
         public async Task<User> GetByEmailAsync(string email) =>
-            await _db.Users.Include(u => u.RefreshTokens).FirstOrDefaultAsync(u => u.Email.ToLower() == email.ToLower());
-
-
-
-        public async Task<User> GetWhitelistedByEmailAsync(string email) =>
-    await _db.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == email.ToLower() && u.IsWhitelisted);
-
+            await _db.Users.Include(u => u.RefreshTokens)
+                           .FirstOrDefaultAsync(u => u.Email.ToLower() == email.ToLower());
 
         public async Task<IEnumerable<User>> GetAllAsync() =>
             await _db.Users.Include(u => u.RefreshTokens).ToListAsync();

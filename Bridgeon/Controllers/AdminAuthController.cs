@@ -1,11 +1,13 @@
-﻿using Bridgeon.Models;
-using Bridgeon.Repositeries.UserRepo;
-using Microsoft.AspNetCore.Mvc;
-using Bridgeon.Dtos;
+﻿using Bridgeon.Dtos;
 using Bridgeon.Dtos.RegisterDto;
+using Bridgeon.Models;
+using Bridgeon.Repositeries.UserRepo;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 [ApiController]
 [Route("api/admin")]
+[Authorize(Roles = "Admin")] // ✅ Only Admin users can access
 public class AdminController : ControllerBase
 {
     private readonly IUserRepository _userRepo;
@@ -25,7 +27,7 @@ public class AdminController : ControllerBase
 
         var user = new User
         {
-            Email = dto.Email,
+            Email = dto.Email.ToLower(),
             FullName = dto.FullName,  // Admin sets full name
             Role = dto.Role ?? "User", // Admin sets role
             IsWhitelisted = true

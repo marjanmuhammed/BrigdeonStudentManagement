@@ -4,14 +4,10 @@ namespace Bridgeon.Repositeries.UserRepo
 {
     public interface IUserRepository
     {
-        Task<User> GetByIdAsync(int id);
-
-
-        Task<User> GetWhitelistedByEmailAsync(string email);
-
-        Task<User> GetByEmailAsync(string email);
-        Task<IEnumerable<User>> GetAllAsync();
         Task AddAsync(User user);
+        Task<User> GetByEmailAsync(string email);
+        Task<User> GetByIdAsync(int id);
+        Task<IEnumerable<User>> GetAllAsync();
         void Update(User user);
         void Remove(User user);
         Task SaveChangesAsync();
