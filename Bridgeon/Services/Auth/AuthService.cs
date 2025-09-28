@@ -7,13 +7,8 @@ using System.Linq;
 using System.Threading.Tasks;
 using BCrypt.Net;
 
-
-
-
 namespace Bridgeon.Services.Auth
 {
-
-
     public class AuthService : IAuthService
     {
         private readonly IUserRepository _userRepo;
@@ -50,7 +45,15 @@ namespace Bridgeon.Services.Auth
             _userRepo.Update(user);
             await _userRepo.SaveChangesAsync();
 
-            return new AuthResponse { AccessToken = accessToken, RefreshToken = refreshToken.Token, AccessTokenExpires = atExpires };
+            return new AuthResponse
+            {
+                AccessToken = accessToken,
+                RefreshToken = refreshToken.Token,
+                AccessTokenExpires = atExpires,
+                Email = user.Email,
+                Role = user.Role,
+                IsBlocked = user.IsBlocked
+            };
         }
 
         public async Task<AuthResponse> LoginAsync(LoginRequest dto, string ipAddress)
@@ -59,7 +62,8 @@ namespace Bridgeon.Services.Auth
             if (user == null || !BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash))
                 throw new Exception("Invalid credentials");
 
-            if (user.IsBlocked) throw new Exception("User is blocked");
+            if (user.IsBlocked)
+                throw new Exception("User is blocked");
 
             var accessToken = _tokenService.CreateAccessToken(user, out DateTime atExpires);
             var refreshToken = _tokenService.CreateRefreshToken(ipAddress);
@@ -70,17 +74,27 @@ namespace Bridgeon.Services.Auth
             _userRepo.Update(user);
             await _userRepo.SaveChangesAsync();
 
-            return new AuthResponse { AccessToken = accessToken, RefreshToken = refreshToken.Token, AccessTokenExpires = atExpires };
+            return new AuthResponse
+            {
+                AccessToken = accessToken,
+                RefreshToken = refreshToken.Token,
+                AccessTokenExpires = atExpires,
+                Email = user.Email,
+                Role = user.Role,
+                IsBlocked = user.IsBlocked
+            };
         }
 
         public async Task<AuthResponse> RefreshTokenAsync(string token, string ipAddress)
         {
             var users = await _userRepo.GetAllAsync();
             var user = users.FirstOrDefault(u => u.RefreshTokens.Any(t => t.Token == token));
-            if (user == null) throw new Exception("Invalid token");
+            if (user == null)
+                throw new Exception("Invalid token");
 
             var rt = user.RefreshTokens.First(t => t.Token == token);
-            if (rt.IsRevoked || rt.Expires < DateTime.UtcNow) throw new Exception("Token invalid or expired");
+            if (rt.IsRevoked || rt.Expires < DateTime.UtcNow)
+                throw new Exception("Token invalid or expired");
 
             rt.IsRevoked = true;
             var newRt = _tokenService.CreateRefreshToken(ipAddress);
@@ -91,7 +105,15 @@ namespace Bridgeon.Services.Auth
             await _userRepo.SaveChangesAsync();
 
             var accessToken = _tokenService.CreateAccessToken(user, out DateTime atExpires);
-            return new AuthResponse { AccessToken = accessToken, RefreshToken = newRt.Token, AccessTokenExpires = atExpires };
+            return new AuthResponse
+            {
+                AccessToken = accessToken,
+                RefreshToken = newRt.Token,
+                AccessTokenExpires = atExpires,
+                Email = user.Email,
+                Role = user.Role,
+                IsBlocked = user.IsBlocked
+            };
         }
 
         public async Task RevokeRefreshTokenAsync(string token, string ipAddress)

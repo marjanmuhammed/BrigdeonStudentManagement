@@ -20,7 +20,6 @@ public class AuthController : ControllerBase
             var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
             var res = await _authService.RegisterAsync(dto, ip);
 
-            // ------------------- Cookies -------------------
             Response.Cookies.Append("accessToken", res.AccessToken, new CookieOptions
             {
                 HttpOnly = true,
@@ -34,19 +33,14 @@ public class AuthController : ControllerBase
                 HttpOnly = true,
                 Secure = true,
                 SameSite = SameSiteMode.Strict,
-                Expires = DateTime.UtcNow.AddDays(7) // adjust days same as config
+                Expires = res.RefreshTokenExpires
             });
 
             return StatusCode(ApiStatusCodes.Created, new ApiResponse<AuthResponse>
             {
                 Status = ApiStatusCodes.Created,
                 Message = "Registration successful",
-                Data = new AuthResponse
-                {
-                    Email = res.Email,
-                    FullName = res.FullName,
-                    Role = res.Role
-                }
+                Data = res
             });
         }
         catch (Exception ex)
@@ -68,7 +62,6 @@ public class AuthController : ControllerBase
             var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
             var res = await _authService.LoginAsync(dto, ip);
 
-            // ------------------- Cookies -------------------
             Response.Cookies.Append("accessToken", res.AccessToken, new CookieOptions
             {
                 HttpOnly = true,
@@ -82,19 +75,14 @@ public class AuthController : ControllerBase
                 HttpOnly = true,
                 Secure = true,
                 SameSite = SameSiteMode.Strict,
-                Expires = DateTime.UtcNow.AddDays(7) // adjust days same as config
+                Expires = res.RefreshTokenExpires
             });
 
             return Ok(new ApiResponse<AuthResponse>
             {
                 Status = ApiStatusCodes.Success,
                 Message = "Login successful",
-                Data = new AuthResponse
-                {
-                    Email = res.Email,
-                    FullName = res.FullName,
-                    Role = res.Role
-                }
+                Data = res
             });
         }
         catch (Exception ex)
@@ -133,19 +121,14 @@ public class AuthController : ControllerBase
                 HttpOnly = true,
                 Secure = true,
                 SameSite = SameSiteMode.Strict,
-                Expires = DateTime.UtcNow.AddDays(7) // adjust as needed
+                Expires = res.RefreshTokenExpires
             });
 
             return Ok(new ApiResponse<AuthResponse>
             {
                 Status = ApiStatusCodes.Success,
                 Message = "Token refreshed",
-                Data = new AuthResponse
-                {
-                    Email = res.Email,
-                    FullName = res.FullName,
-                    Role = res.Role
-                }
+                Data = res
             });
         }
         catch (Exception ex)
