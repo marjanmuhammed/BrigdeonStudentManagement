@@ -1,0 +1,39 @@
+# Build results
+bin/
+obj/
+Debug/
+Release/
+x64/
+x86/
+
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Rider
+.idea/
+
+# NuGet
+*.nupkg
+packages/
+# Uncomment if using PackageReference
+# !**/packages/*.props
+# !**/packages/*.targets
+
+# ASP.NET temporary files
+App_Data/
+*.dbmdl
+
+# IIS Express
+/.vs/
+*.vsconfig
+
+# Logs
+*.log
+
+# OS generated files
+Thumbs.db
+.DS_Store
