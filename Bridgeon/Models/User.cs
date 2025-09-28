@@ -12,13 +12,16 @@ namespace Bridgeon.Models
         [Required, EmailAddress, StringLength(150)]
         public string Email { get; set; }
 
-        [Required]
-        public string PasswordHash { get; set; }  // store hashed
+ 
+        public string ? PasswordHash { get; set; }  // store hashed
 
         public bool IsBlocked { get; set; } = false;
 
         public ICollection<RefreshToken> RefreshTokens { get; set; }
 
-        public string Role { get; set; } = "User"; // Default role
+        [Required]
+        public string Role { get; set; }
+
+        public bool IsWhitelisted { get; set; }
     }
 }

@@ -10,13 +10,25 @@ using Microsoft.AspNetCore.Mvc;
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
-    public AuthController(IAuthService authService) => _authService = authService;
 
+
+    public AuthController(IAuthService authService) => _authService = authService;
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] RegisterRequest dto)
     {
         try
         {
+            // ✅ Check if Password and ConfirmPassword match
+            if (dto.Password != dto.ConfirmPassword)
+            {
+                return BadRequest(new ApiResponse<string>
+                {
+                    Status = ApiStatusCodes.BadRequest,
+                    Message = "Passwords do not match",
+                    Data = null
+                });
+            }
+
             var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
             var res = await _authService.RegisterAsync(dto, ip);
 
@@ -53,6 +65,7 @@ public class AuthController : ControllerBase
             });
         }
     }
+
 
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginRequest dto)
@@ -175,3 +188,4 @@ public class AuthController : ControllerBase
         }
     }
 }
+///////////////////////////

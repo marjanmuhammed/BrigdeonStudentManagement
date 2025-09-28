@@ -22,27 +22,26 @@ namespace Bridgeon.Services.Auth
 
         public async Task<AuthResponse> RegisterAsync(RegisterRequest dto, string ipAddress)
         {
-            var existing = await _userRepo.GetByEmailAsync(dto.Email);
-            if (existing != null)
-                throw new Exception("Email already registered");
+            var whitelistedUser = await _userRepo.GetByEmailAsync(dto.Email);
+            if (whitelistedUser == null || !whitelistedUser.IsWhitelisted)
+                throw new Exception("This email cannot register. Contact admin.");
 
-            var user = new User
-            {
-                FullName = dto.FullName,
-                Email = dto.Email,
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
-                Role = "User"   // All new users default User
-            };
+            if (!string.IsNullOrEmpty(whitelistedUser.PasswordHash))
+                throw new Exception("User already registered");
 
-            await _userRepo.AddAsync(user);
+            // ✅ Set password only, fullName already admin set cheythu
+            whitelistedUser.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password);
+
+            _userRepo.Update(whitelistedUser);
             await _userRepo.SaveChangesAsync();
 
-            var accessToken = _tokenService.CreateAccessToken(user, out DateTime atExpires);
+            // Generate tokens
+            var accessToken = _tokenService.CreateAccessToken(whitelistedUser, out DateTime atExpires);
             var refreshToken = _tokenService.CreateRefreshToken(ipAddress);
-            refreshToken.UserId = user.Id;
+            refreshToken.UserId = whitelistedUser.Id;
 
-            user.RefreshTokens = new System.Collections.Generic.List<RefreshToken> { refreshToken };
-            _userRepo.Update(user);
+            whitelistedUser.RefreshTokens = new List<RefreshToken> { refreshToken };
+            _userRepo.Update(whitelistedUser);
             await _userRepo.SaveChangesAsync();
 
             return new AuthResponse
@@ -50,16 +49,18 @@ namespace Bridgeon.Services.Auth
                 AccessToken = accessToken,
                 RefreshToken = refreshToken.Token,
                 AccessTokenExpires = atExpires,
-                Email = user.Email,
-                Role = user.Role,
-                IsBlocked = user.IsBlocked
+                RefreshTokenExpires = refreshToken.Expires,
+                Email = whitelistedUser.Email,
+                Role = whitelistedUser.Role,
+                IsBlocked = whitelistedUser.IsBlocked
             };
         }
+
 
         public async Task<AuthResponse> LoginAsync(LoginRequest dto, string ipAddress)
         {
             var user = await _userRepo.GetByEmailAsync(dto.Email);
-            if (user == null || !BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash))
+            if (user == null || user.PasswordHash == null || !BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash))
                 throw new Exception("Invalid credentials");
 
             if (user.IsBlocked)
@@ -79,6 +80,7 @@ namespace Bridgeon.Services.Auth
                 AccessToken = accessToken,
                 RefreshToken = refreshToken.Token,
                 AccessTokenExpires = atExpires,
+                RefreshTokenExpires = refreshToken.Expires,
                 Email = user.Email,
                 Role = user.Role,
                 IsBlocked = user.IsBlocked
@@ -110,6 +112,7 @@ namespace Bridgeon.Services.Auth
                 AccessToken = accessToken,
                 RefreshToken = newRt.Token,
                 AccessTokenExpires = atExpires,
+                RefreshTokenExpires = newRt.Expires,
                 Email = user.Email,
                 Role = user.Role,
                 IsBlocked = user.IsBlocked
