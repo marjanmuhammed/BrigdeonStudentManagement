@@ -172,7 +172,7 @@ namespace Bridgeon.Services.Auth
 
             if (!string.IsNullOrEmpty(user.PasswordHash))
                 throw new Exception("Please use email and password to login");
-
+              
             if (user.IsBlocked)
                 throw new Exception("User is blocked");
 

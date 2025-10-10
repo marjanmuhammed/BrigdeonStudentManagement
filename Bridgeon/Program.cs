@@ -1,14 +1,29 @@
 ﻿using Bridgeon.Data;
+
+using Bridgeon.Models;
+using Bridgeon.Repositeries;
+using Bridgeon.Repositeries.Attendence;
+using Bridgeon.Repositeries.Mentor;
 using Bridgeon.Repositeries.UserRepo;
+using Bridgeon.Repositories;
+using Bridgeon.Repositories.Implementations;
+using Bridgeon.Repositories.Interfaces;
+using Bridgeon.Services;
 using Bridgeon.Services.Auth;
+using Bridgeon.Services.Bridgeon.Services.UserProfile;
+using Bridgeon.Services.Implementations;
+using Bridgeon.Services.Interfaces;
+using Bridgeon.Services.Mentor;
 using Bridgeon.Services.Token;
+using Bridgeon.Services.UserProfile;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using MyApp.Services;
 using System.Text;
-using Bridgeon.Repositeries;
-using Bridgeon.Services;
+
 
 var builder = WebApplication.CreateBuilder(args);
 var configuration = builder.Configuration;
@@ -21,22 +36,52 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 // Repositories & Services
 builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IUserProfileRepository, UserProfileRepository>();
+builder.Services.AddScoped<IProfileRepository, ProfileRepository>();
+builder.Services.AddScoped<IUserReviewRepository, UserReviewRepository>();
+builder.Services.AddScoped<IAttendanceRepository, AttendanceRepository>();
+builder.Services.AddScoped<ILeaveRequestRepository, LeaveRequestRepository>();
+builder.Services.AddScoped<IMentorRepository, MentorRepository>();
+
+
+
+
+
+
+
+
+
+//Services////
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
+builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
+builder.Services.AddScoped<IUserProfileService, UserProfileService>();
+builder.Services.AddScoped<IProfileService, ProfileService>();
+builder.Services.AddScoped<IUserReviewService, UserReviewService>();
+builder.Services.AddScoped<IAttendanceService, AttendanceService>();
+builder.Services.AddScoped<ILeaveRequestService, LeaveRequestService>();
+builder.Services.AddScoped<IMentorService, MentorService>();
 
 builder.Services.AddControllers();
+
+
+
+
 
 // -------------------- CORS Setup --------------------
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins("http://localhost:5176", "https://localhost:5176") // Both HTTP and HTTPS
+        policy.WithOrigins("http://localhost:5177")
               .AllowAnyHeader()
               .AllowAnyMethod()
-              .AllowCredentials(); // This is crucial for cookies
+              .AllowCredentials();
     });
 });
+
+
 // -------------------- JWT Auth --------------------
 var jwtSection = configuration.GetSection("Jwt");
 var key = jwtSection["Key"];
@@ -52,6 +97,25 @@ builder.Services.AddAuthentication(options =>
 {
     options.RequireHttpsMetadata = false;
     options.SaveToken = true;
+
+    // First try to get token from Authorization header
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            // If no Authorization header, try to get token from cookie
+            if (string.IsNullOrEmpty(context.Request.Headers["Authorization"]))
+            {
+                var accessToken = context.Request.Cookies["accessToken"];
+                if (!string.IsNullOrEmpty(accessToken))
+                {
+                    context.Token = accessToken;
+                }
+            }
+            return Task.CompletedTask;
+        }
+    };
+
     options.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuer = true,
@@ -61,7 +125,7 @@ builder.Services.AddAuthentication(options =>
         ValidateIssuerSigningKey = true,
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key)),
         ValidateLifetime = true,
-        ClockSkew = TimeSpan.Zero // 🔥 exact expiry respect cheyyan
+        ClockSkew = TimeSpan.Zero
     };
 });
 
@@ -109,8 +173,26 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseCors("AllowFrontend"); // Add this line
 app.UseAuthentication();
+
 app.UseAuthorization();
 
 app.MapControllers();
 
 app.Run();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/////////////////////////////////////////////////////
+

@@ -1,4 +1,5 @@
 ﻿using Bridgeon.Models;
+using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -10,33 +11,48 @@ namespace Bridgeon.Services.Token
     public class TokenService : ITokenService
     {
         private readonly IConfiguration _config;
-        public TokenService(IConfiguration config) { _config = config; }
 
+        public TokenService(IConfiguration config)
+        {
+            _config = config;
+        }
+
+        // ✅ Create Access Token
         public string CreateAccessToken(User user, out DateTime expires)
         {
             var jwtSection = _config.GetSection("Jwt");
-            var key = jwtSection["Key"];
-            var issuer = jwtSection["Issuer"];
-            var audience = jwtSection["Audience"];
-            var minutes = int.Parse(jwtSection["AccessTokenExpireMinutes"]);
 
-            expires = DateTime.UtcNow.AddMinutes(minutes);
+            // 🔐 1. Create signing key and credentials
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSection["Key"]));
+            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
-            var claims = new[]
+            // 🔐 2. Set token expiry
+            var expiresInMinutes = int.Parse(jwtSection["AccessTokenExpireMinutes"] ?? "30");
+            expires = DateTime.UtcNow.AddMinutes(expiresInMinutes);
+
+            // 🔐 3. Add essential claims (UserId, Name, Email, Role)
+            var claims = new List<Claim>
             {
-                new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
-                new Claim(JwtRegisteredClaimNames.Email, user.Email),
-                new Claim("fullName", user.FullName),
-                new Claim(ClaimTypes.Role, user.Role)  // 👈 Role claim add cheyyi
+                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+                new Claim(ClaimTypes.Name, user.FullName ?? string.Empty),
+                new Claim(ClaimTypes.Email, user.Email ?? string.Empty),
+                new Claim(ClaimTypes.Role, user.Role ?? "User")
             };
 
-            var symmetricKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
-            var creds = new SigningCredentials(symmetricKey, SecurityAlgorithms.HmacSha256);
+            // 🔐 4. Create token
+            var token = new JwtSecurityToken(
+                issuer: jwtSection["Issuer"],
+                audience: jwtSection["Audience"],
+                claims: claims,
+                expires: expires,
+                signingCredentials: creds
+            );
 
-            var token = new JwtSecurityToken(issuer, audience, claims, expires: expires, signingCredentials: creds);
+            // ✅ Return the encoded token string
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
 
+        // ✅ Create Refresh Token
         public RefreshToken CreateRefreshToken(string ipAddress)
         {
             var randomBytes = new byte[64];
@@ -46,12 +62,15 @@ namespace Bridgeon.Services.Token
             return new RefreshToken
             {
                 Token = Convert.ToBase64String(randomBytes),
-                Expires = DateTime.UtcNow.AddDays(int.Parse(_config["Jwt:RefreshTokenExpireDays"])),
+                Expires = DateTime.UtcNow.AddDays(
+                    int.Parse(_config["Jwt:RefreshTokenExpireDays"] ?? "7")
+                ),
                 Created = DateTime.UtcNow,
                 CreatedByIp = ipAddress
             };
         }
-        // In TokenService.cs - Add validation
+
+        // ✅ Validate Access Token
         public bool ValidateAccessToken(string token)
         {
             try

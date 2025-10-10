@@ -25,6 +25,9 @@ namespace Bridgeon.Repositeries.UserRepo
         public async Task<IEnumerable<User>> GetAllAsync() =>
             await _db.Users.Include(u => u.RefreshTokens).ToListAsync();
 
+        public async Task<IEnumerable<User>> GetBlockedUsersAsync() =>
+            await _db.Users.Where(u => u.IsBlocked).ToListAsync(); // ✅ new
+
         public void Update(User user) => _db.Users.Update(user);
 
         public void Remove(User user) => _db.Users.Remove(user);
