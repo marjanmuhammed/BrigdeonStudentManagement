@@ -76,7 +76,7 @@ namespace Bridgeon.Data
                 .HasOne(u => u.Mentor)       // each user has one mentor
                 .WithMany(m => m.Mentees)    // mentor has many mentees
                 .HasForeignKey(u => u.MentorId)
-                .OnDelete(DeleteBehavior.NoAction); // ❗ no cascade delete (safe)
+                .OnDelete(DeleteBehavior.ClientSetNull); // ❗ no cascade delete (safe)
 
 
 

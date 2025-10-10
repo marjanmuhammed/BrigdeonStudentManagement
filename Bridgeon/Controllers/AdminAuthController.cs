@@ -1,8 +1,10 @@
-﻿using Bridgeon.Dtos.RegisterDto;
+﻿using Bridgeon.Data;
+using Bridgeon.Dtos.RegisterDto;
 using Bridgeon.Models;
 using Bridgeon.Repositeries.UserRepo;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -12,8 +14,13 @@ using System.Threading.Tasks;
 public class AdminController : ControllerBase
 {
     private readonly IUserRepository _userRepo;
+    private readonly AppDbContext _context; // ✅ Add this
 
-    public AdminController(IUserRepository userRepo) => _userRepo = userRepo;
+    public AdminController(IUserRepository userRepo, AppDbContext context)
+    {
+        _userRepo = userRepo;
+        _context = context; // ✅ assign
+    }
 
     // 1️⃣ Add User
     [HttpPost("add-user")]
@@ -56,15 +63,29 @@ public class AdminController : ControllerBase
         return Ok(result);
     }
 
-    // 3️⃣ Remove User
+    // 3️⃣ Remove User (✅ Fixed)
     [HttpDelete("remove-user/{id}")]
     public async Task<IActionResult> RemoveUser(int id)
     {
-        var user = await _userRepo.GetByIdAsync(id);
-        if (user == null) return NotFound("User not found");
+        var user = await _context.Users
+            .Include(u => u.Mentees) // include mentees to handle null assignment
+            .FirstOrDefaultAsync(u => u.Id == id);
 
-        _userRepo.Remove(user);
-        await _userRepo.SaveChangesAsync();
+        if (user == null)
+            return NotFound("User not found");
+
+        // Set MentorId = null for all mentees before deleting mentor/user
+        if (user.Mentees != null && user.Mentees.Any())
+        {
+            foreach (var mentee in user.Mentees)
+            {
+                mentee.MentorId = null;
+            }
+        }
+
+        _context.Users.Remove(user);
+        await _context.SaveChangesAsync();
+
         return Ok(new { message = "User removed successfully" });
     }
 

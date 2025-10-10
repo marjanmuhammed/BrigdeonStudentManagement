@@ -25,6 +25,7 @@ namespace Bridgeon.Controllers
             var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
             var currentUserRole = User.FindFirst(ClaimTypes.Role)?.Value;
 
+            // Allow admin/mentor to view any profile, users only their own
             if (currentUserRole == "User" && currentUserId != userId)
                 return Forbid("Users can only view their own profile.");
 

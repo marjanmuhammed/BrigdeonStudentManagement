@@ -1,5 +1,5 @@
 ﻿using Bridgeon.Data;
-
+using Bridgeon.Middleware;
 using Bridgeon.Models;
 using Bridgeon.Repositeries;
 using Bridgeon.Repositeries.Attendence;
@@ -62,6 +62,7 @@ builder.Services.AddScoped<IUserReviewService, UserReviewService>();
 builder.Services.AddScoped<IAttendanceService, AttendanceService>();
 builder.Services.AddScoped<ILeaveRequestService, LeaveRequestService>();
 builder.Services.AddScoped<IMentorService, MentorService>();
+builder.Services.AddScoped<IUserService, UserService>();
 
 builder.Services.AddControllers();
 
@@ -173,6 +174,7 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseCors("AllowFrontend"); // Add this line
 app.UseAuthentication();
+app.UseMiddleware<RoleValidationMiddleware>();
 
 app.UseAuthorization();
 
