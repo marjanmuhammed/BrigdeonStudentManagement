@@ -121,6 +121,7 @@ namespace Bridgeon.Controllers
             {
                 _logger.LogInformation("Registration attempt for: {Email}", dto.Email);
 
+                // ✅ Validate email
                 if (string.IsNullOrEmpty(dto.Email) || !new EmailAddressAttribute().IsValid(dto.Email))
                     return BadRequest(new ApiResponse<string>
                     {
@@ -129,6 +130,7 @@ namespace Bridgeon.Controllers
                         Data = null
                     });
 
+                // ✅ Validate password
                 if (string.IsNullOrEmpty(dto.Password) || dto.Password.Length < 6)
                     return BadRequest(new ApiResponse<string>
                     {
@@ -137,8 +139,37 @@ namespace Bridgeon.Controllers
                         Data = null
                     });
 
+                // ✅ Check if email exists in DB
+                var user = await _authService.GetByEmailAsync(dto.Email);
+
+                if (user != null)
+                {
+                    if (user.PasswordHash != null)
+                    {
+                        // Email exists & already registered
+                        return BadRequest(new ApiResponse<string>
+                        {
+                            Status = ApiStatusCodes.BadRequest,
+                            Message = "ALREADY_REGISTERED",
+                            Data = null
+                        });
+                    }
+                    // Email exists but password null → continue to registration
+                }
+                else
+                {
+                    // Email not found in DB → cannot register
+                    return NotFound(new ApiResponse<string>
+                    {
+                        Status = ApiStatusCodes.NotFound,
+                        Message = "EMAIL_NOT_IN_SYSTEM",
+                        Data = null
+                    });
+                }
+
+                // ✅ Normal registration (new email or existing email with null password)
                 var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
-                var res = await _authService.RegisterAsync(dto, ip);
+                var res = await _authService.RegisterAsync(dto, ip); // AuthService should handle null-password user update
 
                 Response.Cookies.Append("accessToken", res.AccessToken, GetCookieOptions(res.AccessTokenExpires));
                 Response.Cookies.Append("refreshToken", res.RefreshToken, GetCookieOptions(res.RefreshTokenExpires));
