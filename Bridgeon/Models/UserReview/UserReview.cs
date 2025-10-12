@@ -1,4 +1,4 @@
-﻿
+﻿using System;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -12,29 +12,27 @@ namespace Bridgeon.Models
         [Required]
         public int UserId { get; set; }
 
+        [ForeignKey("UserId")]
+        public User User { get; set; }
+
         [Required]
-        [StringLength(20)]
-        public string ReviewStatus { get; set; } = "Not Assigned"; // Values: "Not Assigned", "Assigned", "Completed"
-
-        public DateTime? ReviewDate { get; set; } // New review date set by mentor
-
-        // Pending Fees properties
         [StringLength(50)]
-        public string? FeeCategory { get; set; } // e.g., "Weekback", "Monthly", "Training"
+        public string ReviewStatus { get; set; } = "Not Assigned";
+
+        public DateTime? ReviewDate { get; set; }
+
+        // Fee related properties
+        [StringLength(100)]
+        public string? FeeCategory { get; set; }
 
         [Column(TypeName = "decimal(18,2)")]
         public decimal? PendingAmount { get; set; }
 
         public DateTime? DueDate { get; set; }
 
-        [StringLength(20)]
-        public string? FeeStatus { get; set; } = "Pending"; // Pending, Paid
+        [StringLength(50)]
+        public string? FeeStatus { get; set; } = "Pending";
 
-        // Navigation property
-        [ForeignKey("UserId")]
-        public User User { get; set; }
-
-        // Audit Fields
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     }

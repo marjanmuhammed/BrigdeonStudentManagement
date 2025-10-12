@@ -1,5 +1,6 @@
 ﻿using Bridgeon.Data;
-using Bridgeon.Dtos.ReviewStatusDto;
+using Bridgeon.Dtos;
+using Bridgeon.Dtos.CreateReview;
 using Bridgeon.Models;
 using Bridgeon.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -13,28 +14,39 @@ namespace Bridgeon.Services
     public class UserReviewService : IUserReviewService
     {
         private readonly AppDbContext _context;
-        public UserReviewService(AppDbContext context) => _context = context;
 
-        // ======= Get all reviews by userId =======
-        public async Task<IEnumerable<UserReview>> GetUserReviewsByUserIdAsync(int userId)
+        public UserReviewService(AppDbContext context)
         {
-            return await _context.UserReviews
-                .Where(r => r.UserId == userId)
-                .OrderByDescending(r => r.CreatedAt)
-                .ToListAsync();
+            _context = context;
         }
 
-        // ======= Get single review by review Id =======
+        public async Task<IEnumerable<UserReview>> GetAllUserReviewsAsync()
+        {
+            return await _context.UserReviews.Include(r => r.User).OrderByDescending(r => r.CreatedAt).ToListAsync();
+        }
+
         public async Task<UserReview> GetUserReviewAsync(int id)
         {
-            return await _context.UserReviews
-                .Include(r => r.User)
-                .FirstOrDefaultAsync(r => r.Id == id);
+            return await _context.UserReviews.Include(r => r.User).FirstOrDefaultAsync(r => r.Id == id);
         }
 
-        // ======= Get single review by userId (latest if multiple) =======
+        public async Task<IEnumerable<UserReview>> GetUserReviewsByUserIdAsync(int userId)
+        {
+            return await _context.UserReviews.Where(r => r.UserId == userId).Include(r => r.User).OrderByDescending(r => r.CreatedAt).ToListAsync();
+        }
+
+        public async Task<UserReview> CreateUserReviewAsync(UserReview review)
+        {
+            review.CreatedAt = DateTime.UtcNow;
+            review.UpdatedAt = DateTime.UtcNow;
+            _context.UserReviews.Add(review);
+            await _context.SaveChangesAsync();
+            return review;
+        }
+
         public async Task<UserReview> GetUserReviewByUserIdAsync(int userId)
         {
+            // Fetch the latest review for the user
             return await _context.UserReviews
                 .Include(r => r.User)
                 .Where(r => r.UserId == userId)
@@ -42,33 +54,24 @@ namespace Bridgeon.Services
                 .FirstOrDefaultAsync();
         }
 
-        // ======= Create review =======
-        public async Task<UserReview> CreateUserReviewAsync(UserReview review)
-        {
-            review.CreatedAt = DateTime.UtcNow;
-            review.UpdatedAt = DateTime.UtcNow;
 
-            _context.UserReviews.Add(review);
-            await _context.SaveChangesAsync();
-            return review;
-        }
-
-        // ======= Update review status & date =======
-        public async Task<UserReview> UpdateReviewStatusAsync(int id, string status, DateTime? reviewDate)
+        public async Task<UserReview> UpdateReviewStatusAsync(int id, string status, DateTime? reviewDate = null)
         {
             var review = await _context.UserReviews.FindAsync(id);
             if (review == null) return null;
 
             review.ReviewStatus = status;
-            review.ReviewDate = reviewDate;
-            review.UpdatedAt = DateTime.UtcNow;
 
+            // ✅ Only update reviewDate if a value is provided
+            if (reviewDate.HasValue)
+                review.ReviewDate = reviewDate.Value;
+
+            review.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
-            return review;
+            return await GetUserReviewAsync(review.Id);
         }
 
-        // ======= Update pending fees =======
-        public async Task<UserReview> UpdatePendingFeeAsync(int id, string feeCategory, decimal pendingAmount, DateTime? dueDate)
+        public async Task<UserReview> UpdatePendingFeeByReviewIdAsync(int id, string feeCategory, decimal pendingAmount, DateTime? dueDate)
         {
             var review = await _context.UserReviews.FindAsync(id);
             if (review == null) return null;
@@ -76,13 +79,37 @@ namespace Bridgeon.Services
             review.FeeCategory = feeCategory;
             review.PendingAmount = pendingAmount;
             review.DueDate = dueDate;
+            review.FeeStatus = "Pending";
             review.UpdatedAt = DateTime.UtcNow;
-
             await _context.SaveChangesAsync();
-            return review;
+            return await GetUserReviewAsync(review.Id);
         }
 
-        // ======= Delete review =======
+        public async Task<UserReview> UpdateFeeStatusAsync(int id, string feeStatus)
+        {
+            var review = await _context.UserReviews.FindAsync(id);
+            if (review == null) return null;
+
+            review.FeeStatus = feeStatus;
+            review.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+            return await GetUserReviewAsync(review.Id);
+        }
+
+        public async Task<UserReview> DeletePendingFeeByReviewIdAsync(int id)
+        {
+            var review = await _context.UserReviews.FindAsync(id);
+            if (review == null) return null;
+
+            review.FeeCategory = null;
+            review.PendingAmount = null;
+            review.DueDate = null;
+            review.FeeStatus = null;
+            review.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+            return await GetUserReviewAsync(review.Id);
+        }
+
         public async Task<bool> DeleteUserReviewAsync(int id)
         {
             var review = await _context.UserReviews.FindAsync(id);
@@ -93,8 +120,7 @@ namespace Bridgeon.Services
             return true;
         }
 
-        // ======= Map UserReview → UserReviewDto =======
-        public UserReviewDto MapToDto(UserReview r) => new()
+        public UserReviewDto MapToDto(UserReview r) => new UserReviewDto
         {
             Id = r.Id,
             UserId = r.UserId,
@@ -111,3 +137,4 @@ namespace Bridgeon.Services
         };
     }
 }
+//////////////////////////////////////
