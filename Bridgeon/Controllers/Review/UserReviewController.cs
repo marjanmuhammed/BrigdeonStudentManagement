@@ -15,13 +15,14 @@ namespace Bridgeon.Controllers
     public class UserReviewController : ControllerBase
     {
         private readonly IUserReviewService _service;
+        private readonly INotificationService _notificationService;
 
-        public UserReviewController(IUserReviewService service)
+        public UserReviewController(IUserReviewService service, INotificationService notificationService)
         {
             _service = service;
+            _notificationService = notificationService;
         }
 
-        // 1️⃣ Add review (Admin/Mentor)
         [Authorize(Roles = "Admin,Mentor")]
         [HttpPost("add-review")]
         public async Task<IActionResult> AddReview([FromBody] CreateReviewDto dto)
@@ -34,18 +35,29 @@ namespace Bridgeon.Controllers
                 UserId = dto.UserId,
                 ReviewStatus = string.IsNullOrEmpty(dto.ReviewStatus) ? "Not Assigned" : dto.ReviewStatus,
                 ReviewDate = string.IsNullOrEmpty(dto.ReviewDate)
-        ? DateTime.UtcNow
-        : DateTime.Parse(dto.ReviewDate), // ⚡ parse from string
+                    ? DateTime.UtcNow
+                    : DateTime.Parse(dto.ReviewDate),
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
 
             var created = await _service.CreateUserReviewAsync(review);
+
+            // ✅ Create notification for the user - "Assigned a Review"
+            await _notificationService.CreateNotificationAsync(new Notification
+            {
+                UserId = dto.UserId,
+                Title = "Assigned a Review",
+                Message = $"A review has been assigned to you with status: {created.ReviewStatus}",
+                Type = "review",
+                IsRead = false,
+                CreatedAt = DateTime.UtcNow
+            });
+
             return Ok(new { message = "Review added successfully.", data = _service.MapToDto(created) });
         }
 
 
-        // 2️⃣ Update review by userId (Admin/Mentor) - only status
         [HttpPut("update-review-status/{userId}")]
         public async Task<IActionResult> UpdateReviewStatus(int userId, [FromBody] UpdateStatusDto dto)
         {
@@ -55,9 +67,23 @@ namespace Bridgeon.Controllers
             var review = await _service.GetUserReviewByUserIdAsync(userId);
             if (review == null) return NotFound(new { message = "Review not found." });
 
-            var updated = await _service.UpdateReviewStatusAsync(review.Id, dto.ReviewStatus, dto.ReviewDate); // ✅ use dto.ReviewDate
+            var oldStatus = review.ReviewStatus;
+            var updated = await _service.UpdateReviewStatusAsync(review.Id, dto.ReviewStatus, dto.ReviewDate);
+
+            // ✅ Create notification for review status update
+            await _notificationService.CreateNotificationAsync(new Notification
+            {
+                UserId = userId,
+                Title = "Review Status Updated",
+                Message = $"Your review status changed from {oldStatus} to {dto.ReviewStatus}",
+                Type = "review",
+                IsRead = false,
+                CreatedAt = DateTime.UtcNow
+            });
+
             return Ok(new { message = "Review status updated successfully.", data = _service.MapToDto(updated) });
         }
+
 
 
         // 3️⃣ Delete review by userId (Admin/Mentor)
@@ -102,9 +128,11 @@ namespace Bridgeon.Controllers
         [HttpGet("my-reviews")]
         public async Task<IActionResult> GetMyReviews()
         {
-            var userIdClaim = User.FindFirst("userId")?.Value;
-            if (!int.TryParse(userIdClaim, out int userId))
+            var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out int userId))
                 return Unauthorized(new { message = "Invalid user token." });
+
 
             var reviews = await _service.GetUserReviewsByUserIdAsync(userId);
             var reviewDtos = new List<UserReviewDto>();
@@ -122,10 +150,21 @@ namespace Bridgeon.Controllers
             if (review == null) return NotFound(new { message = "Review not found." });
 
             var updated = await _service.UpdatePendingFeeByReviewIdAsync(review.Id, dto.FeeCategory, dto.PendingAmount, dto.DueDate);
+
+            // ✅ Create notification for fee addition - "Added a Week Back"
+            await _notificationService.CreateNotificationAsync(new Notification
+            {
+                UserId = userId,
+                Title = "Added a Week Back",
+                Message = $"Fee category '{dto.FeeCategory}' with amount {dto.PendingAmount} has been added",
+                Type = "fee",
+                IsRead = false,
+                CreatedAt = DateTime.UtcNow
+            });
+
             return Ok(new { message = "Fees updated successfully.", data = _service.MapToDto(updated) });
         }
 
-        // 8️⃣ Update fee status (Admin/Mentor)
         [Authorize(Roles = "Admin,Mentor")]
         [HttpPut("{userId}/fee-status")]
         public async Task<IActionResult> UpdateFeeStatus(int userId, [FromBody] FeeStatusDto dto)
@@ -133,7 +172,20 @@ namespace Bridgeon.Controllers
             var review = await _service.GetUserReviewByUserIdAsync(userId);
             if (review == null) return NotFound(new { message = "Review not found." });
 
+            var oldStatus = review.FeeStatus;
             var updated = await _service.UpdateFeeStatusAsync(review.Id, dto.FeeStatus);
+
+            // ✅ Create notification for fee status update
+            await _notificationService.CreateNotificationAsync(new Notification
+            {
+                UserId = userId,
+                Title = "Fee Status Updated",
+                Message = $"Fee status changed from {oldStatus} to {dto.FeeStatus}",
+                Type = "fee",
+                IsRead = false,
+                CreatedAt = DateTime.UtcNow
+            });
+
             return Ok(new { message = "Fee status updated successfully.", data = _service.MapToDto(updated) });
         }
 
@@ -193,6 +245,25 @@ namespace Bridgeon.Controllers
                     review.FeeStatus
                 }
             });
+        }
+
+        // Update existing fees (for edit functionality)
+        [Authorize(Roles = "Admin,Mentor")]
+        [HttpPut("{userId}/fees")]
+        public async Task<IActionResult> UpdateFees(int userId, [FromBody] PendingFeesDto dto)
+        {
+            var review = await _service.GetUserReviewByUserIdAsync(userId);
+            if (review == null) return NotFound(new { message = "Review not found." });
+
+            var updated = await _service.UpdatePendingFeeByReviewIdAsync(review.Id, dto.FeeCategory, dto.PendingAmount, dto.DueDate);
+
+            // Also update fee status if provided
+            if (!string.IsNullOrEmpty(dto.FeeStatus))
+            {
+                updated = await _service.UpdateFeeStatusAsync(review.Id, dto.FeeStatus);
+            }
+
+            return Ok(new { message = "Fees updated successfully.", data = _service.MapToDto(updated) });
         }
     }
 }

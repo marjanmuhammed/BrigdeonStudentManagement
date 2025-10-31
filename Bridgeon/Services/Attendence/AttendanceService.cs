@@ -17,13 +17,11 @@ namespace Bridgeon.Services
         private readonly IAttendanceRepository _repo;
         public AttendanceService(IAttendanceRepository repo) { _repo = repo; }
 
-        public async Task<AttendanceDto> CreateAttendanceAsync(AttendanceCreateDto dto, string recordedById)
+        public async Task<AttendanceDto> CreateAttendanceAsync(AttendanceCreateDto dto, int recordedById)
         {
-            // Check duplicate
             var existing = await _repo.GetByUserDateAsync(dto.UserId, dto.Date);
             if (existing != null)
             {
-                // if exists, update instead? Here throw
                 throw new InvalidOperationException("Attendance already exists for this user and date.");
             }
 
@@ -31,8 +29,9 @@ namespace Bridgeon.Services
             {
                 UserId = dto.UserId,
                 Date = dto.Date.Date,
+                CheckInTime = dto.CheckInTime,
+                CheckOutTime = dto.CheckOutTime,
                 Status = dto.Status,
-                Notes = dto.Notes,
                 RecordedById = recordedById,
                 CreatedAt = DateTime.UtcNow
             };
@@ -43,22 +42,16 @@ namespace Bridgeon.Services
             return MapToDto(entity);
         }
 
-        public async Task<bool> DeleteAttendanceAsync(int id)
+        public async Task<AttendanceDto> UpdateAttendanceAsync(AttendanceUpdateDto dto, int modifiedById)
         {
-            var entity = await _repo.GetByIdAsync(id);
-            if (entity == null) return false;
-            await _repo.DeleteAsync(entity);
-            await _repo.SaveChangesAsync();
-            return true;
-        }
+            var entity = await _repo.GetByUserDateAsync(dto.UserId, dto.Date);
+            if (entity == null)
+                throw new InvalidOperationException("Attendance record not found for this user and date.");
 
-        public async Task<AttendanceDto> UpdateAttendanceAsync(int id, AttendanceUpdateDto dto, string modifiedById)
-        {
-            var entity = await _repo.GetByIdAsync(id);
-            if (entity == null) return null;
-
+            entity.Date = dto.Date.Date;
+            entity.CheckInTime = dto.CheckInTime;
+            entity.CheckOutTime = dto.CheckOutTime;
             entity.Status = dto.Status;
-            entity.Notes = dto.Notes;
             entity.ModifiedAt = DateTime.UtcNow;
             entity.RecordedById = modifiedById;
 
@@ -68,16 +61,38 @@ namespace Bridgeon.Services
             return MapToDto(entity);
         }
 
-        public async Task<IEnumerable<AttendanceDto>> GetMonthAsync(int year, int month)
+        public async Task<bool> DeleteAttendanceAsync(int userId, DateTime date)
         {
-            var items = await _repo.GetForMonthAsync(year, month);
+            var entity = await _repo.GetByUserDateAsync(userId, date);
+            if (entity == null) return false;
+
+            await _repo.DeleteAsync(entity);
+            await _repo.SaveChangesAsync();
+            return true;
+        }
+
+        public async Task<IEnumerable<AttendanceDto>> GetMonthAsync(int year, int month, int? userId = null)
+        {
+            var items = await _repo.GetForMonthAsync(year, month, userId);
             return items.Select(MapToDto);
         }
 
-        public async Task<IEnumerable<AttendanceDto>> GetUserRangeAsync(string userId, DateTime from, DateTime to)
+        public async Task<IEnumerable<AttendanceDto>> GetAllAsync()
         {
-            var items = await _repo.GetForUserRangeAsync(userId, from, to);
+            var items = await _repo.GetAllAsync();
             return items.Select(MapToDto);
+        }
+
+        public async Task<IEnumerable<AttendanceDto>> GetUserAttendancesAsync(int userId)
+        {
+            var items = await _repo.GetUserAttendancesAsync(userId);
+            return items.Select(MapToDto);
+        }
+
+        public async Task<AttendanceDto> GetByUserAndDateAsync(int userId, DateTime date)
+        {
+            var item = await _repo.GetByUserDateAsync(userId, date);
+            return item == null ? null : MapToDto(item);
         }
 
         private AttendanceDto MapToDto(Attendance a)
@@ -87,9 +102,12 @@ namespace Bridgeon.Services
                 Id = a.Id,
                 UserId = a.UserId,
                 Date = a.Date,
+                CheckInTime = a.CheckInTime,
+                CheckOutTime = a.CheckOutTime,
                 Status = a.Status,
-                Notes = a.Notes,
-                RecordedById = a.RecordedById
+                RecordedById = a.RecordedById,
+                CreatedAt = a.CreatedAt,
+                ModifiedAt = a.ModifiedAt
             };
         }
     }

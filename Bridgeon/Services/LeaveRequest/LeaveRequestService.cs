@@ -1,127 +1,202 @@
-﻿using Bridgeon.Dtos.LeaveRequest;
+﻿using Bridgeon.Data;
+using Bridgeon.Dtos.LeaveRequest;
 using Bridgeon.Models.Attendence;
-using Bridgeon.Repositeries;
-using Bridgeon.Repositeries.Attendence;
-using Bridgeon.Services;
-using Bridgeon.DTOs;
-using Bridgeon.Models;
-using Bridgeon.Repositories;
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace MyApp.Services
+namespace Bridgeon.Services
 {
     public class LeaveRequestService : ILeaveRequestService
     {
-        private readonly ILeaveRequestRepository _repo;
-        private readonly IAttendanceRepository _attendanceRepo;
+        private readonly AppDbContext _context;
 
-        public LeaveRequestService(ILeaveRequestRepository repo, IAttendanceRepository attendanceRepo)
+        public LeaveRequestService(AppDbContext context)
         {
-            _repo = repo;
-            _attendanceRepo = attendanceRepo;
+            _context = context;
         }
 
-        public async Task<LeaveRequestDto> CreateLeaveRequestAsync(string userId, LeaveRequestCreateDto dto)
+        public async Task<LeaveRequestDto> CreateLeaveRequestAsync(int userId, LeaveRequestCreateDto dto)
         {
-            // Optional: check duplicates
-            var existing = (await _repo.GetByUserAsync(userId))
-                .FirstOrDefault(l => l.Date.Date == dto.Date.Date && l.Status == LeaveRequestStatus.Pending);
+            // Ensure we're only using the date part
+            var dateOnly = dto.Date.Date;
 
-            if (existing != null)
-                throw new InvalidOperationException("There is already a pending leave request for this date.");
+            // Check if user already has a pending request for the same date
+            var existingRequest = await _context.LeaveRequests
+                .Where(lr => lr.UserId == userId &&
+                           lr.Date.Date == dateOnly &&
+                           lr.Status == LeaveRequestStatus.Pending)
+                .FirstOrDefaultAsync();
 
-            var leave = new LeaveRequest
+            if (existingRequest != null)
+            {
+                throw new InvalidOperationException("You already have a pending leave request for this date.");
+            }
+
+            var leaveRequest = new LeaveRequest
             {
                 UserId = userId,
-                Date = dto.Date.Date,
+                Date = dateOnly,
+                LeaveType = dto.LeaveType,
                 Reason = dto.Reason,
+                ProofImageUrl = dto.ProofImageUrl,
                 Status = LeaveRequestStatus.Pending,
                 CreatedAt = DateTime.UtcNow
             };
 
-            await _repo.AddAsync(leave);
-            await _repo.SaveChangesAsync();
+            _context.LeaveRequests.Add(leaveRequest);
+            await _context.SaveChangesAsync();
 
-            return MapToDto(leave);
+            return await MapToDtoAsync(leaveRequest);
         }
 
         public async Task<LeaveRequestDto> GetByIdAsync(int id)
         {
-            var leave = await _repo.GetByIdAsync(id);
-            return leave == null ? null : MapToDto(leave);
+            var request = await _context.LeaveRequests
+                .FirstOrDefaultAsync(lr => lr.Id == id);
+
+            if (request == null) return null;
+
+            return await MapToDtoAsync(request);
         }
 
-        public async Task<IEnumerable<LeaveRequestDto>> GetPendingRequestsAsync()
+        public async Task<List<LeaveRequestDto>> GetUserRequestsAsync(int userId)
         {
-            var list = await _repo.GetPendingAsync();
-            return list.Select(MapToDto);
-        }
+            var requests = await _context.LeaveRequests
+                .Where(lr => lr.UserId == userId)
+                .OrderByDescending(lr => lr.Date)
+                .ToListAsync();
 
-        public async Task<IEnumerable<LeaveRequestDto>> GetUserRequestsAsync(string userId)
-        {
-            var list = await _repo.GetByUserAsync(userId);
-            return list.Select(MapToDto);
-        }
-
-        public async Task<LeaveRequestDto> ReviewRequestAsync(LeaveRequestActionDto actionDto, string reviewedById)
-        {
-            var leave = await _repo.GetByIdAsync(actionDto.RequestId);
-            if (leave == null) return null;
-            if (leave.Status != LeaveRequestStatus.Pending)
-                throw new InvalidOperationException("Request already reviewed.");
-
-            if (actionDto.Approve)
+            var dtos = new List<LeaveRequestDto>();
+            foreach (var request in requests)
             {
-                leave.Status = LeaveRequestStatus.Approved;
-                // Optionally: create an Attendance record as Excused
-                var attendance = await _attendanceRepo.GetByUserDateAsync(leave.UserId, leave.Date);
-                if (attendance == null)
-                {
-                    var att = new Attendance
-                    {
-                        UserId = leave.UserId,
-                        Date = leave.Date.Date,
-                        Status = AttendanceStatus.Excused,
-                        Notes = "Auto-marked from approved leave",
-                        RecordedById = reviewedById,
-                        CreatedAt = DateTime.UtcNow
-                    };
-                    await _attendanceRepo.AddAsync(att);
-                    // don't save attendance here; we save after updating leave
-                }
-            }
-            else
-            {
-                leave.Status = LeaveRequestStatus.Rejected;
+                dtos.Add(await MapToDtoAsync(request));
             }
 
-            leave.ReviewedById = reviewedById;
-            leave.ReviewNotes = actionDto.Notes;
-            leave.UpdatedAt = DateTime.UtcNow;
-
-            await _repo.UpdateAsync(leave);
-            // persist both leave and attendance
-            await _attendanceRepo.SaveChangesAsync();
-            await _repo.SaveChangesAsync();
-
-            return MapToDto(leave);
+            return dtos;
         }
 
-        private LeaveRequestDto MapToDto(LeaveRequest lr)
+        public async Task<List<LeaveRequestDto>> GetPendingRequestsAsync(int reviewerId, string reviewerRole)
         {
+            IQueryable<LeaveRequest> query = _context.LeaveRequests
+                .Where(lr => lr.Status == LeaveRequestStatus.Pending);
+
+            // If reviewer is Mentor, only show requests from their mentees
+            if (reviewerRole == "Mentor")
+            {
+                // Get the list of mentee IDs for this mentor
+                var menteeIds = await _context.UserMentors
+                    .Where(um => um.MentorId == reviewerId)
+                    .Select(um => um.MenteeId)
+                    .ToListAsync();
+
+                query = query.Where(lr => menteeIds.Contains(lr.UserId));
+            }
+            // If reviewer is Admin, show all pending requests (no filter)
+
+            var requests = await query
+                .OrderBy(lr => lr.Date)
+                .ToListAsync();
+
+            var dtos = new List<LeaveRequestDto>();
+            foreach (var request in requests)
+            {
+                dtos.Add(await MapToDtoAsync(request));
+            }
+
+            return dtos;
+        }
+
+        // ... rest of the existing methods ...
+    
+
+        public async Task<LeaveRequestDto> ReviewRequestAsync(LeaveRequestActionDto dto, int reviewerId)
+        {
+            var request = await _context.LeaveRequests
+                .FirstOrDefaultAsync(lr => lr.Id == dto.RequestId);
+
+            if (request == null)
+                return null;
+
+            if (request.Status != LeaveRequestStatus.Pending)
+            {
+                throw new InvalidOperationException("This request has already been processed.");
+            }
+
+            request.Status = dto.Approve ? LeaveRequestStatus.Approved : LeaveRequestStatus.Rejected;
+            request.ReviewedById = reviewerId;
+            request.ReviewNotes = dto.Notes;
+            request.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            return await MapToDtoAsync(request);
+        }
+
+        private async Task<LeaveRequestDto> MapToDtoAsync(LeaveRequest request)
+        {
+            var user = await _context.Users
+                .Where(u => u.Id == request.UserId)
+                .Select(u => new { u.FullName, u.Email })
+                .FirstOrDefaultAsync();
+
             return new LeaveRequestDto
             {
-                Id = lr.Id,
-                UserId = lr.UserId,
-                Date = lr.Date,
-                Reason = lr.Reason,
-                Status = lr.Status,
-                ReviewedById = lr.ReviewedById,
-                ReviewNotes = lr.ReviewNotes
+                Id = request.Id,
+                UserId = request.UserId,
+                UserName = user?.FullName ?? "Unknown User",
+                UserEmail = user?.Email ?? "Unknown Email",
+                Date = request.Date,
+                LeaveType = request.LeaveType,
+                Reason = request.Reason,
+                ProofImageUrl = request.ProofImageUrl,
+                Status = request.Status,
+                ReviewedById = request.ReviewedById,
+                ReviewNotes = request.ReviewNotes,
+                CreatedAt = request.CreatedAt
             };
         }
+        public async Task<List<LeaveRequestDto>> GetMenteesPendingRequestsAsync(int mentorId)
+        {
+            // Use the same approach as MentorService - check User.MentorId
+            var menteeIds = await _context.Users
+                .Where(u => u.MentorId == mentorId)
+                .Select(u => u.Id)
+                .ToListAsync();
+
+            Console.WriteLine($"Mentor ID: {mentorId}");
+            Console.WriteLine($"Found {menteeIds.Count} mentees for this mentor");
+
+            if (!menteeIds.Any())
+            {
+                Console.WriteLine("No mentees found for this mentor");
+                return new List<LeaveRequestDto>();
+            }
+
+            // Debug: Check if there are any pending leave requests for these mentees
+            var pendingRequestsCount = await _context.LeaveRequests
+                .Where(lr => lr.Status == LeaveRequestStatus.Pending &&
+                             menteeIds.Contains(lr.UserId))
+                .CountAsync();
+
+            Console.WriteLine($"Found {pendingRequestsCount} pending leave requests for mentees");
+
+            var requests = await _context.LeaveRequests
+                .Where(lr => lr.Status == LeaveRequestStatus.Pending &&
+                             menteeIds.Contains(lr.UserId))
+                .OrderBy(lr => lr.Date)
+                .ToListAsync();
+
+            var dtos = new List<LeaveRequestDto>();
+            foreach (var request in requests)
+            {
+                dtos.Add(await MapToDtoAsync(request));
+            }
+
+            return dtos;
+        }
+
     }
 }

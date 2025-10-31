@@ -103,7 +103,7 @@ namespace Bridgeon.Controllers
         }
 
         [HttpGet("all-profile-images")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,Mentor")]
         public async Task<IActionResult> GetAllProfileImages()
         {
             try

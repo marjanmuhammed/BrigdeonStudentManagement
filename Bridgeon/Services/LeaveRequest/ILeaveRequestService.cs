@@ -7,10 +7,11 @@ namespace Bridgeon.Services
 {
     public interface ILeaveRequestService
     {
-        Task<LeaveRequestDto> CreateLeaveRequestAsync(string userId, LeaveRequestCreateDto dto);
-        Task<IEnumerable<LeaveRequestDto>> GetUserRequestsAsync(string userId);
-        Task<IEnumerable<LeaveRequestDto>> GetPendingRequestsAsync();
+        Task<LeaveRequestDto> CreateLeaveRequestAsync(int userId, LeaveRequestCreateDto dto);
         Task<LeaveRequestDto> GetByIdAsync(int id);
-        Task<LeaveRequestDto> ReviewRequestAsync(LeaveRequestActionDto actionDto, string reviewedById);
+        Task<List<LeaveRequestDto>> GetUserRequestsAsync(int userId);
+        Task<List<LeaveRequestDto>> GetPendingRequestsAsync(int reviewerId, string reviewerRole); // Updated
+        Task<LeaveRequestDto> ReviewRequestAsync(LeaveRequestActionDto dto, int reviewerId);
+        Task<List<LeaveRequestDto>> GetMenteesPendingRequestsAsync(int mentorId);
     }
 }

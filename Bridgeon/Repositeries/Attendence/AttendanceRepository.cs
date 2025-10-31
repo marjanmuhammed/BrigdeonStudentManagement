@@ -25,24 +25,43 @@ namespace Bridgeon.Repositeries.Attendence
             return await _db.Attendances.FindAsync(id);
         }
 
-        public async Task<Attendance> GetByUserDateAsync(string userId, DateTime date)
+        public async Task<Attendance> GetByUserDateAsync(int userId, DateTime date)
         {
             var d = date.Date;
             return await _db.Attendances
                 .FirstOrDefaultAsync(a => a.UserId == userId && a.Date.Date == d);
         }
 
-        public async Task<IEnumerable<Attendance>> GetForUserRangeAsync(string userId, DateTime from, DateTime to)
+        public async Task<IEnumerable<Attendance>> GetForUserRangeAsync(int userId, DateTime from, DateTime to)
         {
             return await _db.Attendances
                 .Where(a => a.UserId == userId && a.Date.Date >= from.Date && a.Date.Date <= to.Date)
                 .ToListAsync();
         }
 
-        public async Task<IEnumerable<Attendance>> GetForMonthAsync(int year, int month)
+        public async Task<IEnumerable<Attendance>> GetForMonthAsync(int year, int month, int? userId = null)
+        {
+            var query = _db.Attendances
+                .Where(a => a.Date.Year == year && a.Date.Month == month);
+
+            if (userId.HasValue)
+            {
+                query = query.Where(a => a.UserId == userId.Value);
+            }
+
+            return await query.ToListAsync();
+        }
+
+        public async Task<IEnumerable<Attendance>> GetAllAsync()
+        {
+            return await _db.Attendances.ToListAsync();
+        }
+
+        public async Task<IEnumerable<Attendance>> GetUserAttendancesAsync(int userId)
         {
             return await _db.Attendances
-                .Where(a => a.Date.Year == year && a.Date.Month == month)
+                .Where(a => a.UserId == userId)
+                .OrderByDescending(a => a.Date)
                 .ToListAsync();
         }
 

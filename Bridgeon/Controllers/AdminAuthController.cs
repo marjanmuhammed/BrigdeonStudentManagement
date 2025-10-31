@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 
 [ApiController]
 [Route("api/admin")]
-[Authorize(Roles = "Admin")]
+[Authorize(Roles = "Admin,Mentor")]
 public class AdminController : ControllerBase
 {
     private readonly IUserRepository _userRepo;
@@ -133,4 +133,26 @@ public class AdminController : ControllerBase
 
         return Ok(new { message = "User role updated successfully" });
     }
+    // 7️⃣ Get User by ID
+    [HttpGet("user/{id}")]
+    public async Task<IActionResult> GetUserById(int id)
+    {
+        var user = await _context.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.Id == id);
+
+        if (user == null)
+            return NotFound("User not found");
+
+        return Ok(new
+        {
+            user.Id,
+            user.FullName,
+            user.Email,
+            user.Role,
+            user.IsBlocked,
+            user.IsWhitelisted
+        });
+    }
+
 }

@@ -1,5 +1,6 @@
 ﻿using Bridgeon.Models;
 using Bridgeon.Models.Attendence;
+using Bridgeon.Models.Mentor;
 using Microsoft.EntityFrameworkCore;
 using System.Reflection.Emit;
 
@@ -19,8 +20,14 @@ namespace Bridgeon.Data
         public DbSet<Attendance> Attendances { get; set; }
         public DbSet<LeaveRequest> LeaveRequests { get; set; }
 
-      
 
+        public DbSet<Holiday> Holidays { get; set; }
+
+        public DbSet<UserMentor> UserMentors { get; set; }
+
+        public DbSet<ReviewScore> ReviewScores { get; set; }
+
+        public DbSet<Notification> Notifications { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {

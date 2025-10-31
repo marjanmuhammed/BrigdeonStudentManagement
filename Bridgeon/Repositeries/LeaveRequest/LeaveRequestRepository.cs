@@ -23,7 +23,7 @@ namespace Bridgeon.Repositeries
             return await _db.LeaveRequests.FindAsync(id);
         }
 
-        public async Task<IEnumerable<LeaveRequest>> GetByUserAsync(string userId)
+        public async Task<IEnumerable<LeaveRequest>> GetByUserAsync(int userId)
         {
             return await _db.LeaveRequests
                 .Where(l => l.UserId == userId)

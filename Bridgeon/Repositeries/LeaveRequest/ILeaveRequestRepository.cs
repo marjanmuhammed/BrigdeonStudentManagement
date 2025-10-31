@@ -11,7 +11,7 @@ namespace Bridgeon.Repositeries
     public interface ILeaveRequestRepository
     {
         Task<LeaveRequest> GetByIdAsync(int id);
-        Task<IEnumerable<LeaveRequest>> GetByUserAsync(string userId);
+        Task<IEnumerable<LeaveRequest>> GetByUserAsync(int userId);
         Task<IEnumerable<LeaveRequest>> GetPendingAsync();
         Task AddAsync(LeaveRequest leave);
         Task UpdateAsync(LeaveRequest leave);

@@ -365,5 +365,27 @@ namespace Bridgeon.Controllers
                 });
             }
         }
+
+        // In your AuthController.cs
+        [HttpGet("user-info")]
+        [Authorize]
+        public IActionResult GetUserInfo()
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var userName = User.FindFirst(ClaimTypes.Name)?.Value;
+            var userEmail = User.FindFirst(ClaimTypes.Email)?.Value;
+            var userRole = User.FindFirst(ClaimTypes.Role)?.Value;
+
+            return Ok(new
+            {
+                UserId = userId,
+                UserName = userName,
+                UserEmail = userEmail,
+                Role = userRole,
+                IsAdmin = userRole == "Admin",
+                IsMentor = userRole == "Mentor",
+                HasAccess = userRole == "Admin" || userRole == "Mentor"
+            });
+        }
     }
 }
