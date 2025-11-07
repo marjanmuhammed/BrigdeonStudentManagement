@@ -26,6 +26,10 @@ using System.Text;
 
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Configuration.AddEnvironmentVariables();
+
+
 var configuration = builder.Configuration;
 
 // -------------------- Add Services --------------------
@@ -33,6 +37,10 @@ var configuration = builder.Configuration;
 // DbContext
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
+
+
+
+
 
 // Repositories & Services
 builder.Services.AddScoped<IUserRepository, UserRepository>();
