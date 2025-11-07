@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 ﻿# Use the official .NET SDK image to build the project
+=======
+# Use the official .NET SDK image to build the project
+>>>>>>> 740ed38dcf657c69d962a25e4abbae849ec5a7b3
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
@@ -22,4 +26,8 @@ COPY --from=build /app/publish .
 EXPOSE 8080
 ENV ASPNETCORE_URLS=http://+:8080
 
+<<<<<<< HEAD
 ENTRYPOINT ["dotnet", "Bridgeon.dll"]
+=======
+ENTRYPOINT ["dotnet", "Bridgeon.dll"]
+>>>>>>> 740ed38dcf657c69d962a25e4abbae849ec5a7b3
